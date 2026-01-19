@@ -1,22 +1,70 @@
-import { useMemo, useState } from 'react';
-import { Card, Row, Col, Table, Button, Divider, Modal, Tag, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Card, Row, Col, Table, Button, Divider, Modal, Tag, Typography, Spin, message } from 'antd';
 import { DislikeOutlined } from '@ant-design/icons';
 import { useDate } from '../../../context/DateContext';
 import { StatCard, TrendChart } from '../../../components';
-import { generateUserRatingData, sampleDislikeConversations } from '../../../mock';
+import { getUserRatingData, getDislikeConversations } from '../../../services/dualRatingService';
+import type { DailyUserRating, DislikeConversation } from '../../../types';
 
 const { Text } = Typography;
 
 const UserRating = () => {
   const { selectedDate } = useDate();
   const [dislikeModalVisible, setDislikeModalVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [allData, setAllData] = useState<DailyUserRating[]>([]);
+  const [dislikeConversations, setDislikeConversations] = useState<DislikeConversation[]>([]);
+  const [dislikeLoading, setDislikeLoading] = useState(false);
 
-  const allData = useMemo(() => generateUserRatingData(30), []);
+  // 获取用户评分数据
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await getUserRatingData(30);
+        setAllData(data);
+      } catch (error) {
+        message.error('获取用户评分数据失败');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // 获取点踩对话
+  const fetchDislikeConversations = async () => {
+    setDislikeLoading(true);
+    try {
+      const result = await getDislikeConversations();
+      setDislikeConversations(result.list);
+    } catch (error) {
+      message.error('获取点踩对话失败');
+      console.error(error);
+    } finally {
+      setDislikeLoading(false);
+    }
+  };
+
+  const handleOpenDislikeModal = () => {
+    setDislikeModalVisible(true);
+    fetchDislikeConversations();
+  };
 
   const currentData = useMemo(() => {
     const dateStr = selectedDate.format('YYYY-MM-DD');
     return allData.find((d) => d.date === dateStr) || allData[allData.length - 1];
   }, [allData, selectedDate]);
+
+  // 如果没有数据，显示加载中
+  if (loading || !currentData) {
+    return (
+      <div style={{ marginBottom: 24, textAlign: 'center', padding: '50px 0' }}>
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   // 计算指标
   const fiveStarRatio = currentData.totalRatedUsers > 0
@@ -192,7 +240,7 @@ const UserRating = () => {
               <Button
                 type="primary"
                 icon={<DislikeOutlined />}
-                onClick={() => setDislikeModalVisible(true)}
+                onClick={handleOpenDislikeModal}
               >
                 查看所有点踩对话
               </Button>
@@ -221,43 +269,49 @@ const UserRating = () => {
         footer={null}
         width={700}
       >
-        {sampleDislikeConversations.map((conv) => (
-          <Card
-            key={conv.topicId}
-            size="small"
-            title={
-              <span>
-                话题ID：{conv.topicId}
-                <Text type="secondary" style={{ marginLeft: 16, fontSize: 12 }}>
-                  点踩时间：{conv.dislikeTime}
-                </Text>
-              </span>
-            }
-            style={{ marginBottom: 16 }}
-          >
-            <p style={{ marginBottom: 8, color: '#666' }}>话题：{conv.topic}</p>
-            {conv.messages.map((msg, idx) => (
-              <div
-                key={idx}
-                style={{
-                  padding: '8px 12px',
-                  marginBottom: 8,
-                  background: msg.role === 'user' ? '#f5f5f5' : '#e6f7ff',
-                  borderRadius: 4,
-                  border: msg.isDisliked ? '2px solid #ff4d4f' : 'none',
-                }}
-              >
-                <Text strong>{msg.role === 'user' ? '用户' : '齐家AI'}：</Text>
-                <Text>{msg.content}</Text>
-                {msg.isDisliked && (
-                  <Tag color="error" style={{ marginLeft: 8 }}>
-                    <DislikeOutlined /> 点踩
-                  </Tag>
-                )}
-              </div>
-            ))}
-          </Card>
-        ))}
+        {dislikeLoading ? (
+          <div style={{ textAlign: 'center', padding: '50px 0' }}>
+            <Spin tip="加载中..." />
+          </div>
+        ) : (
+          dislikeConversations.map((conv) => (
+            <Card
+              key={conv.topicId}
+              size="small"
+              title={
+                <span>
+                  话题ID：{conv.topicId}
+                  <Text type="secondary" style={{ marginLeft: 16, fontSize: 12 }}>
+                    点踩时间：{conv.dislikeTime}
+                  </Text>
+                </span>
+              }
+              style={{ marginBottom: 16 }}
+            >
+              <p style={{ marginBottom: 8, color: '#666' }}>话题：{conv.topic}</p>
+              {conv.messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: '8px 12px',
+                    marginBottom: 8,
+                    background: msg.role === 'user' ? '#f5f5f5' : '#e6f7ff',
+                    borderRadius: 4,
+                    border: msg.isDisliked ? '2px solid #ff4d4f' : 'none',
+                  }}
+                >
+                  <Text strong>{msg.role === 'user' ? '用户' : '齐家AI'}：</Text>
+                  <Text>{msg.content}</Text>
+                  {msg.isDisliked && (
+                    <Tag color="error" style={{ marginLeft: 8 }}>
+                      <DislikeOutlined /> 点踩
+                    </Tag>
+                  )}
+                </div>
+              ))}
+            </Card>
+          ))
+        )}
       </Modal>
 
       <Divider />

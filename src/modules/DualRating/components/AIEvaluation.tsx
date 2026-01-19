@@ -1,19 +1,51 @@
-import { useMemo, useState } from 'react';
-import { Card, Row, Col, Modal, Timeline, Divider } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Card, Row, Col, Modal, Timeline, Divider, Spin, message } from 'antd';
 import { useDate } from '../../../context/DateContext';
 import { StatCard, TrendChart } from '../../../components';
-import { generateAIEvaluationData, evaluatorVersion } from '../../../mock';
+import { getAIEvaluationData, getEvaluatorVersion } from '../../../services/dualRatingService';
+import type { DailyAIEvaluation, EvaluatorVersion } from '../../../types';
 
 const AIEvaluation = () => {
   const { selectedDate } = useDate();
   const [changelogVisible, setChangelogVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [allData, setAllData] = useState<DailyAIEvaluation[]>([]);
+  const [versionInfo, setVersionInfo] = useState<EvaluatorVersion | null>(null);
 
-  const allData = useMemo(() => generateAIEvaluationData(30), []);
+  // 获取 AI 评估数据
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [evaluationData, version] = await Promise.all([
+          getAIEvaluationData(30),
+          getEvaluatorVersion(),
+        ]);
+        setAllData(evaluationData);
+        setVersionInfo(version);
+      } catch (error) {
+        message.error('获取AI评估数据失败');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const currentData = useMemo(() => {
     const dateStr = selectedDate.format('YYYY-MM-DD');
     return allData.find((d) => d.date === dateStr) || allData[allData.length - 1];
   }, [allData, selectedDate]);
+
+  // 如果没有数据，显示加载中
+  if (loading || !currentData || !versionInfo) {
+    return (
+      <div style={{ marginBottom: 24, textAlign: 'center', padding: '50px 0' }}>
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   // 趋势图数据
   const trendData = {
@@ -29,8 +61,8 @@ const AIEvaluation = () => {
 
       {/* 评估器信息 */}
       <div className="version-info" style={{ marginBottom: 16 }}>
-        <div>当前版本：{evaluatorVersion.version}</div>
-        <div>最后更新：{evaluatorVersion.lastUpdate}</div>
+        <div>当前版本：{versionInfo.version}</div>
+        <div>最后更新：{versionInfo.lastUpdate}</div>
         <a onClick={() => setChangelogVisible(true)}>查看变更日志</a>
       </div>
 
@@ -85,7 +117,7 @@ const AIEvaluation = () => {
         footer={null}
       >
         <Timeline
-          items={evaluatorVersion.changelog.map((entry) => ({
+          items={versionInfo.changelog.map((entry) => ({
             children: (
               <div>
                 <div style={{ fontWeight: 'bold' }}>

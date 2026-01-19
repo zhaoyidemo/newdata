@@ -1,19 +1,46 @@
-import { useMemo, useState } from 'react';
-import { Card, Table, Select, Space } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Card, Table, Select, Space, Spin, message } from 'antd';
 import { useDate } from '../../../context/DateContext';
 import { TrendChart } from '../../../components';
-import { generateABTrendData } from '../../../mock';
+import { getABTrendData } from '../../../services/dualRatingService';
+import type { ABTestData } from '../../../types';
 
 const ABSummary = () => {
   const { selectedDate } = useDate();
   const [trendMetric, setTrendMetric] = useState('fiveStarRatio');
+  const [loading, setLoading] = useState(true);
+  const [abTrendData, setAbTrendData] = useState<ABTestData[]>([]);
 
-  const abTrendData = useMemo(() => generateABTrendData(30), []);
+  // 获取 AB 测试趋势数据
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await getABTrendData(30);
+        setAbTrendData(data);
+      } catch (error) {
+        message.error('获取AB测试数据失败');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const currentData = useMemo(() => {
     const dateStr = selectedDate.format('YYYY-MM-DD');
     return abTrendData.find((d) => d.versionA.userRating.date === dateStr) || abTrendData[abTrendData.length - 1];
   }, [abTrendData, selectedDate]);
+
+  // 如果没有数据，显示加载中
+  if (loading || !currentData) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   const { versionA, versionB } = currentData;
 

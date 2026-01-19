@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
-import { Card, Row, Col, Table, Button, Divider } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Card, Row, Col, Table, Button, Divider, Spin, message } from 'antd';
 import { useDate } from '../../../context/DateContext';
 import { StatCard, TrendChart } from '../../../components';
-import { generateABTrendData, evaluatorVersion } from '../../../mock';
+import { getABTrendData, getEvaluatorVersion } from '../../../services/dualRatingService';
+import type { ABTestData, EvaluatorVersion } from '../../../types';
 
 interface VersionDetailProps {
   version: 'A' | 'B';
@@ -10,10 +11,33 @@ interface VersionDetailProps {
 
 const VersionDetail = ({ version }: VersionDetailProps) => {
   const { selectedDate } = useDate();
+  const [loading, setLoading] = useState(true);
+  const [abTrendData, setAbTrendData] = useState<ABTestData[]>([]);
+  const [versionInfo, setVersionInfo] = useState<EvaluatorVersion | null>(null);
 
-  const abTrendData = useMemo(() => generateABTrendData(30), []);
+  // 获取数据
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [trendData, evalVersion] = await Promise.all([
+          getABTrendData(30),
+          getEvaluatorVersion(),
+        ]);
+        setAbTrendData(trendData);
+        setVersionInfo(evalVersion);
+      } catch (error) {
+        message.error('获取版本详情数据失败');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const currentData = useMemo(() => {
+    if (abTrendData.length === 0) return null;
     const dateStr = selectedDate.format('YYYY-MM-DD');
     const dayData = abTrendData.find((d) => d.versionA.userRating.date === dateStr) || abTrendData[abTrendData.length - 1];
     return version === 'A' ? dayData.versionA : dayData.versionB;
@@ -22,6 +46,15 @@ const VersionDetail = ({ version }: VersionDetailProps) => {
   const allVersionData = useMemo(() => {
     return abTrendData.map((d) => (version === 'A' ? d.versionA : d.versionB));
   }, [abTrendData, version]);
+
+  // 如果没有数据，显示加载中
+  if (loading || !currentData || !versionInfo) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   const { userRating, aiEvaluation, crossAnalysis } = currentData;
 
@@ -167,7 +200,7 @@ const VersionDetail = ({ version }: VersionDetailProps) => {
       {/* AI客观评估 */}
       <h4 style={{ marginBottom: 12 }}>AI客观评估</h4>
       <div className="version-info" style={{ marginBottom: 16 }}>
-        <span>评估器版本：{evaluatorVersion.version} | 最后更新：{evaluatorVersion.lastUpdate}</span>
+        <span>评估器版本：{versionInfo.version} | 最后更新：{versionInfo.lastUpdate}</span>
       </div>
 
       <Card size="small" title="三维度平均分" style={{ marginBottom: 16 }}>
