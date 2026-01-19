@@ -4,9 +4,6 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { DateProvider, useDate } from './context/DateContext';
 import DualRating from './modules/DualRating';
-import UserData from './modules/UserData';
-import CostValue from './modules/CostValue';
-import Performance from './modules/Performance';
 import './App.css';
 
 dayjs.locale('zh-cn');
@@ -22,21 +19,6 @@ const AppContent = () => {
       key: '1',
       label: '双重评分',
       children: <DualRating />,
-    },
-    {
-      key: '2',
-      label: '用户使用数据',
-      children: <UserData />,
-    },
-    {
-      key: '3',
-      label: '成本和社会价值',
-      children: <CostValue />,
-    },
-    {
-      key: '4',
-      label: '技术性能数据',
-      children: <Performance />,
     },
   ];
 
